@@ -51,22 +51,26 @@ class FSPYAUTO_OT_import_photo(bpy.types.Operator, ImportHelper):
 
 
 class FSPYAUTO_OT_update_model(bpy.types.Operator):
-    """Ladda ner eller uppdatera AI-modellen från GitHub"""
+    """Kolla serverstatus och modellversion"""
     bl_idname = "fspyauto.update_model"
-    bl_label  = "Uppdatera modell"
+    bl_label  = "Kolla serverstatus"
 
     def execute(self, context):
-        from .downloader import ensure_model, get_local_model_version
+        import urllib.request
+        import json
 
-        self.report({'INFO'}, "Kollar efter uppdateringar...")
-        status, message = ensure_model(force=True)
-
-        if status == "ok":
-            version = get_local_model_version() or "okänd"
+        try:
+            req = urllib.request.Request(
+                "http://davidbicho.com:8765/fspy-auto/status",
+                headers={"User-Agent": "fspy-auto-blender-addon"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read())
+            version = data.get("model_version", "okänd")
             context.scene.fspyauto_model_version = version
-            self.report({'INFO'}, message)
-        else:
-            self.report({'ERROR'}, message)
+            self.report({'INFO'}, f"Server online - modell {version}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Server ej nåbar: {e}")
 
         return {'FINISHED'}
 
@@ -130,14 +134,7 @@ def register():
     bpy.types.Scene.fspyauto_last_roll     = StringProperty(default="")
     bpy.types.Scene.fspyauto_last_yaw      = StringProperty(default="")
 
-    # Kolla modell vid start (tyst, ingen force)
-    from .downloader import ensure_model, get_local_model_version
-    status, _ = ensure_model()
-    if status == "ok":
-        version = get_local_model_version()
-        if version:
-            import bpy as _bpy
-            _bpy.context.scene.fspyauto_model_version = version
+    pass
 
 
 def unregister():
